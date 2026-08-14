@@ -286,3 +286,13 @@ tests/       Python 单元测试
 ## 隐私说明
 
 电脑端只读取 `token_count` 事件中的计数和额度字段，不会通过 BLE 发送提示词、回复正文、文件内容或认证令牌。默认 BLE 负载仅在电脑与设备之间传输；可选 HTTP 服务默认建议绑定 `127.0.0.1`。
+
+## 致谢
+
+感谢 [OpenAI Codex](https://openai.com/codex/) 提供让本仪表盘成为可能的本地用量数据，并在 CodexMeter 的设计、开发与调试过程中担任编程协作者。
+
+CodexMeter 是独立的社区项目，与 OpenAI 无隶属关系，也未获得 OpenAI 官方背书。
+
+## 许可证
+
+CodexMeter 基于 [MIT License](LICENSE) 开源。

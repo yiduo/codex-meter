@@ -276,3 +276,13 @@ tests/       Python unit tests
 ## Privacy
 
 The desktop bridge reads only counters and rate-limit fields from `token_count` events. It does not transmit prompts, responses, file contents, or authentication tokens over BLE. The optional HTTP endpoint should remain bound to `127.0.0.1` unless LAN access is intentionally configured.
+
+## Acknowledgements
+
+Thanks to [OpenAI Codex](https://openai.com/codex/) for the local usage metadata that makes this dashboard possible, and for serving as a coding collaborator throughout CodexMeter's design, implementation, and debugging.
+
+CodexMeter is an independent community project and is not affiliated with or endorsed by OpenAI.
+
+## License
+
+CodexMeter is released under the [MIT License](LICENSE).
