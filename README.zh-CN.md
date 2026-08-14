@@ -6,6 +6,12 @@
 
 电脑端从本地 Codex 会话日志读取额度和 token 计数，每 60 秒通过 BLE 短暂连接设备、发送一次数据并立即断开。设备不需要连接 Wi-Fi，也不会接触对话正文或 Codex 认证信息。
 
+## 实机展示
+
+| 竖屏仪表盘 | 横屏仪表盘 |
+| --- | --- |
+| ![CodexMeter 竖屏仪表盘](docs/images/codexmeter-portrait.jpg) | ![CodexMeter 横屏仪表盘](docs/images/codexmeter-landscape.jpg) |
+
 ## 功能
 
 - 显示 Codex 当前额度窗口的**剩余百分比**和重置倒计时

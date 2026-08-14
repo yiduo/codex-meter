@@ -6,6 +6,12 @@ A low-power Bluetooth dashboard that displays local Codex usage on an M5StickS3.
 
 The desktop bridge reads usage counters from local Codex session logs, connects to the device briefly over BLE every 60 seconds, sends one snapshot, and disconnects. The M5StickS3 needs no Wi-Fi, LAN address, or HTTP server. Prompt text, responses, files, and Codex credentials are never sent to the device.
 
+## Device preview
+
+| Portrait dashboard | Landscape dashboard |
+| --- | --- |
+| ![CodexMeter portrait dashboard](docs/images/codexmeter-portrait.jpg) | ![CodexMeter landscape dashboard](docs/images/codexmeter-landscape.jpg) |
+
 ## Features
 
 - Remaining percentage and reset countdown for the current Codex limit window
