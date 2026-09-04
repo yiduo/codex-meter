@@ -2,6 +2,15 @@
 
 All notable changes to CodexMeter are documented in this file.
 
+## Unreleased
+
+### Fixed
+
+- Keep BLE attempts on a true start-to-start 60-second cadence instead of adding scan time to the interval
+- Bound CoreBluetooth operations with an overall timeout so a stalled scan cannot freeze synchronization indefinitely
+- Automatically restart the per-user macOS Bluetooth agent when CoreBluetooth becomes unavailable
+- Add timestamps to bridge logs for easier stale-data diagnosis
+
 ## [1.0.0] - 2026-08-14
 
 Initial stable release.

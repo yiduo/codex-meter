@@ -8,6 +8,9 @@ import asyncio
 import fcntl
 import json
 import os
+import subprocess
+import sys
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +43,43 @@ PAYLOAD_FIELDS = (
     "reasoning_output_tokens",
     "updated_at",
 )
+
+
+def log(message: str) -> None:
+    timestamp = datetime.now().astimezone().isoformat(timespec="seconds")
+    print(f"[{timestamp}] {message}", flush=True)
+
+
+def operation_timeout(connection_timeout: float) -> float:
+    """Allow one scan and one connection, but never hang indefinitely."""
+    return max(connection_timeout * 2 + 5, 20)
+
+
+def cycle_delay(interval: float, elapsed: float) -> float:
+    """Keep attempts on a start-to-start cadence with a short failure backoff."""
+    return max(max(interval, 5) - elapsed, 1)
+
+
+def recover_macos_bluetooth() -> bool:
+    """Restart the per-user Bluetooth agent after CoreBluetooth becomes unavailable."""
+    if sys.platform != "darwin":
+        return False
+    try:
+        result = subprocess.run(
+            [
+                "launchctl",
+                "kickstart",
+                "-k",
+                f"gui/{os.getuid()}/com.apple.bluetoothuserd",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0
 
 
 def acquire_sender_lock():
@@ -111,23 +151,41 @@ def parse_args() -> argparse.Namespace:
 
 
 async def run(args: argparse.Namespace) -> None:
+    from bleak.exc import BleakBluetoothNotAvailableError
+
     reader = UsageReader(args.codex_home.expanduser())
-    print(f"等待蓝牙设备：{args.device}", flush=True)
+    loop = asyncio.get_running_loop()
+    log(f"等待蓝牙设备：{args.device}")
     while True:
+        cycle_started = loop.time()
         snapshot = reader.snapshot()
         try:
-            await push_snapshot(snapshot, args.device, args.shared_key, args.timeout, args.chunk_size)
-            print(
+            await asyncio.wait_for(
+                push_snapshot(
+                    snapshot,
+                    args.device,
+                    args.shared_key,
+                    args.timeout,
+                    args.chunk_size,
+                ),
+                timeout=operation_timeout(args.timeout),
+            )
+            log(
                 f"同步成功：已用 {snapshot.get('used_percent', 0):.0f}%，"
                 f"剩余 {100 - snapshot.get('used_percent', 0):.0f}% / "
-                f"{snapshot.get('today_tokens', 0):,} today tokens",
-                flush=True,
+                f"{snapshot.get('today_tokens', 0):,} today tokens"
             )
             if args.once:
                 return
+        except (TimeoutError, BleakBluetoothNotAvailableError) as exc:
+            recovered = recover_macos_bluetooth()
+            reason = "蓝牙操作超时" if isinstance(exc, TimeoutError) else str(exc)
+            suffix = "；已重启 macOS 蓝牙代理" if recovered else ""
+            log(f"同步失败：{reason}{suffix}")
         except Exception as exc:
-            print(f"同步失败：{exc}", flush=True)
-        await asyncio.sleep(max(args.interval, 5))
+            log(f"同步失败：{exc}")
+        elapsed = loop.time() - cycle_started
+        await asyncio.sleep(cycle_delay(args.interval, elapsed))
 
 
 def main() -> None:
@@ -135,12 +193,12 @@ def main() -> None:
     try:
         lock = acquire_sender_lock()
     except RuntimeError as exc:
-        print(exc)
+        log(str(exc))
         return
     try:
         asyncio.run(run(args))
     except KeyboardInterrupt:
-        print("\n停止蓝牙同步")
+        log("停止蓝牙同步")
     finally:
         lock.close()
 

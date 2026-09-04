@@ -3,9 +3,15 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from bridge.server import UsageReader
-from bridge.ble_sender import build_payload
+from bridge.ble_sender import (
+    build_payload,
+    cycle_delay,
+    operation_timeout,
+    recover_macos_bluetooth,
+)
 
 
 def token_event(
@@ -124,6 +130,25 @@ class UsageReaderTest(unittest.TestCase):
         self.assertEqual(decoded["limit_id"], "codex")
         self.assertEqual(decoded["key"], "secret")
         self.assertLess(len(payload), 512)
+
+    def test_cycle_delay_keeps_start_to_start_interval(self) -> None:
+        self.assertEqual(cycle_delay(60, 15), 45)
+        self.assertEqual(cycle_delay(60, 61), 1)
+        self.assertEqual(cycle_delay(1, 0), 5)
+
+    def test_operation_timeout_covers_scan_and_connection(self) -> None:
+        self.assertEqual(operation_timeout(15), 35)
+        self.assertEqual(operation_timeout(2), 20)
+
+    @patch("bridge.ble_sender.sys.platform", "darwin")
+    @patch("bridge.ble_sender.subprocess.run")
+    def test_macos_bluetooth_recovery_restarts_user_agent(self, run: Mock) -> None:
+        run.return_value.returncode = 0
+
+        self.assertTrue(recover_macos_bluetooth())
+        command = run.call_args.args[0]
+        self.assertEqual(command[:3], ["launchctl", "kickstart", "-k"])
+        self.assertTrue(command[3].endswith("/com.apple.bluetoothuserd"))
 
 
 if __name__ == "__main__":
