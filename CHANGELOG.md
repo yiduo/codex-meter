@@ -6,6 +6,7 @@ All notable changes to CodexMeter are documented in this file.
 
 ### Fixed
 
+- Read the live overall Codex percentage from `account/rateLimits/read`, falling back to session logs only when unavailable
 - Keep BLE attempts on a true start-to-start 60-second cadence instead of adding scan time to the interval
 - Bound CoreBluetooth operations with an overall timeout so a stalled scan cannot freeze synchronization indefinitely
 - Automatically restart the per-user macOS Bluetooth agent when CoreBluetooth becomes unavailable

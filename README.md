@@ -37,20 +37,18 @@ When data becomes older than three minutes, only the status indicator turns yell
 ## How it works
 
 ```text
-~/.codex/sessions/**/*.jsonl
-~/.codex/archived_sessions/*.jsonl
-               │
-               ▼
-     bridge/ble_sender.py
-      aggregates token_count events
-               │
-       brief BLE connection every 60 s
-               │
-               ▼
-        M5StickS3 / CodexMeter
+Codex app-server                ~/.codex session logs
+live account/rateLimits/read    local token_count events
+                \                /
+                 bridge/ble_sender.py
+                           │
+               brief BLE connection every 60 s
+                           │
+                           ▼
+                  M5StickS3 / CodexMeter
 ```
 
-The percentage comes from `rate_limits.primary.used_percent` in local Codex logs. The device displays `100 - used_percent`. CodexMeter accepts only the overall `limit_id=codex` limit, preventing a model-specific limit from being shown as the account-wide value.
+The percentage is read live from the local Codex app-server method `account/rateLimits/read`; if that interface is unavailable, the sender falls back to the newest `rate_limits.primary.used_percent` value in local session logs. The device displays `100 - used_percent`. CodexMeter accepts only the overall `limit_id=codex` limit, preventing a model-specific limit from being shown as the account-wide value.
 
 Token totals come from local `token_count` events. Tokens and rate-limit percentages are different units, so CodexMeter does not invent a “total token allowance.” Today's total starts at midnight in the computer's local time zone; seven days means today plus the six previous calendar days.
 
@@ -228,11 +226,12 @@ For LAN access, bind to `0.0.0.0` and set an API key with `--api-key` or `CODEX_
 
 ### The screen remains on `WAITING` or `--%`
 
-1. Run `bridge/server.py --once` and confirm that local `token_count` and overall limit data exist.
+1. Run `bridge/server.py --once` and confirm that local `token_count` data exist. This debug command reads the log fallback, so its percentage can briefly lag behind the Codex UI.
 2. Run `bridge/ble_sender.py --once` to distinguish scan, connection, and acknowledgment errors.
-3. Confirm that `--device` and `BLE_DEVICE_NAME` match.
-4. Check Bluetooth access under macOS System Settings → Privacy & Security → Bluetooth.
-5. Press B to restart advertising; reboot the device if needed.
+3. Check the sender log for `百分比来源：Codex 实时接口`; this confirms that the live account limit is in use.
+4. Confirm that `--device` and `BLE_DEVICE_NAME` match.
+5. Check Bluetooth access under macOS System Settings → Privacy & Security → Bluetooth.
+6. Press B to restart advertising; reboot the device if needed.
 
 ### “Bluetooth device not found” appears occasionally
 
@@ -275,7 +274,7 @@ tests/       Python unit tests
 
 ## Privacy
 
-The desktop bridge reads only counters and rate-limit fields from `token_count` events. It does not transmit prompts, responses, file contents, or authentication tokens over BLE. The optional HTTP endpoint should remain bound to `127.0.0.1` unless LAN access is intentionally configured.
+The desktop bridge reads the overall percentage from the local Codex app-server and token counters from `token_count` events. It does not transmit prompts, responses, file contents, authentication tokens, account IDs, or reset credits over BLE. The optional HTTP endpoint should remain bound to `127.0.0.1` unless LAN access is intentionally configured.
 
 ## Acknowledgements
 

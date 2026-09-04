@@ -37,20 +37,18 @@
 ## 工作原理
 
 ```text
-~/.codex/sessions/**/*.jsonl
-~/.codex/archived_sessions/*.jsonl
-               │
-               ▼
-     bridge/ble_sender.py
-      读取并汇总 token_count
-               │
-        BLE，每 60 秒短连接
-               │
-               ▼
-        M5StickS3 / CodexMeter
+Codex app-server                 ~/.codex 会话日志
+实时 account/rateLimits/read     本地 token_count 事件
+                 \                /
+                  bridge/ble_sender.py
+                            │
+                   BLE，每 60 秒短连接
+                            │
+                            ▼
+                   M5StickS3 / CodexMeter
 ```
 
-百分比来自 Codex 日志中的 `rate_limits.primary.used_percent`，屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
+百分比优先通过本机 Codex app-server 的 `account/rateLimits/read` 实时读取；接口不可用时才回退到会话日志中最新的 `rate_limits.primary.used_percent`。屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
 
 token 数量来自本机 `token_count` 事件。token 与额度百分比不是同一种计费单位，因此 CodexMeter 不会根据 token 数量虚构一个“token 总额度”。今日统计按电脑的本地时区从零点开始，近 7 天为今天加前 6 个自然日。
 
@@ -236,11 +234,12 @@ BLE 同步不依赖这个 HTTP 服务。
 
 ### 屏幕一直显示 `WAITING` 或 `--%`
 
-1. 运行 `bridge/server.py --once`，确认本机有 `token_count` 和总体额度数据。
+1. 运行 `bridge/server.py --once`，确认本机存在 `token_count` 数据。该调试命令读取日志回退值，因此百分比可能短暂落后于 Codex 界面。
 2. 运行 `bridge/ble_sender.py --once`，查看是扫描、连接还是设备确认失败。
-3. 确认设备广播名与 `--device`、`BLE_DEVICE_NAME` 一致。
-4. 检查 macOS“系统设置 → 隐私与安全性 → 蓝牙”中的终端/Python权限。
-5. 按 B 键重新开始广播；仍无效时重启设备。
+3. 检查发送日志中是否出现 `百分比来源：Codex 实时接口`，以确认正在使用实时账户额度。
+4. 确认设备广播名与 `--device`、`BLE_DEVICE_NAME` 一致。
+5. 检查 macOS“系统设置 → 隐私与安全性 → 蓝牙”中的终端/Python权限。
+6. 按 B 键重新开始广播；仍无效时重启设备。
 
 ### 偶尔出现“未找到蓝牙设备”
 
@@ -285,7 +284,7 @@ tests/       Python 单元测试
 
 ## 隐私说明
 
-电脑端只读取 `token_count` 事件中的计数和额度字段，不会通过 BLE 发送提示词、回复正文、文件内容或认证令牌。默认 BLE 负载仅在电脑与设备之间传输；可选 HTTP 服务默认建议绑定 `127.0.0.1`。
+电脑端通过本机 Codex app-server 读取总体百分比，并从 `token_count` 事件读取 token 计数。不会通过 BLE 发送提示词、回复正文、文件内容、认证令牌、账户 ID 或重置额度信息。默认 BLE 负载仅在电脑与设备之间传输；可选 HTTP 服务默认建议绑定 `127.0.0.1`。
 
 ## 致谢
 

@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+from bridge.codex_limits import extract_codex_limit
 from bridge.server import UsageReader
 from bridge.ble_sender import (
     build_payload,
@@ -139,6 +140,50 @@ class UsageReaderTest(unittest.TestCase):
     def test_operation_timeout_covers_scan_and_connection(self) -> None:
         self.assertEqual(operation_timeout(15), 35)
         self.assertEqual(operation_timeout(2), 20)
+
+    def test_live_limit_uses_overall_codex_bucket(self) -> None:
+        result = extract_codex_limit(
+            {
+                "rateLimits": {
+                    "limitId": "codex_bengalfox",
+                    "primary": {"usedPercent": 0},
+                },
+                "rateLimitsByLimitId": {
+                    "codex": {
+                        "limitId": "codex",
+                        "primary": {
+                            "usedPercent": 82,
+                            "windowDurationMins": 10080,
+                            "resetsAt": 2_000_000_000,
+                        },
+                    }
+                },
+            }
+        )
+
+        self.assertEqual(
+            result,
+            {
+                "valid": True,
+                "limit_id": "codex",
+                "used_percent": 82.0,
+                "window_minutes": 10080,
+                "window_label": "WEEKLY",
+                "resets_at": 2_000_000_000,
+            },
+        )
+
+    def test_live_limit_rejects_model_specific_fallback(self) -> None:
+        self.assertIsNone(
+            extract_codex_limit(
+                {
+                    "rateLimits": {
+                        "limitId": "codex_bengalfox",
+                        "primary": {"usedPercent": 0},
+                    }
+                }
+            )
+        )
 
     @patch("bridge.ble_sender.sys.platform", "darwin")
     @patch("bridge.ble_sender.subprocess.run")

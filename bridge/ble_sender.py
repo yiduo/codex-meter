@@ -15,8 +15,10 @@ from pathlib import Path
 from typing import Any
 
 try:
+    from bridge.codex_limits import read_live_codex_limit, resolve_codex_cli
     from bridge.server import UsageReader
 except ModuleNotFoundError:  # 兼容 `python bridge/ble_sender.py` 直接运行。
+    from codex_limits import read_live_codex_limit, resolve_codex_cli
     from server import UsageReader
 
 
@@ -142,6 +144,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="CodexMeter", help="StickS3 BLE 广播名称")
     parser.add_argument("--codex-home", type=Path, default=default_home)
+    parser.add_argument("--codex-cli", type=Path, help="Codex CLI 路径（默认自动查找）")
+    parser.add_argument("--no-live-limits", action="store_true", help="只使用本地日志额度")
+    parser.add_argument("--live-limit-timeout", type=float, default=10)
     parser.add_argument("--shared-key", default=os.environ.get("CODEX_BLE_KEY", ""))
     parser.add_argument("--interval", type=float, default=60, help="同步间隔秒数")
     parser.add_argument("--timeout", type=float, default=15, help="扫描和连接超时秒数")
@@ -154,11 +159,30 @@ async def run(args: argparse.Namespace) -> None:
     from bleak.exc import BleakBluetoothNotAvailableError
 
     reader = UsageReader(args.codex_home.expanduser())
+    codex_cli = None if args.no_live_limits else resolve_codex_cli(args.codex_cli)
+    live_limit_error_logged = False
     loop = asyncio.get_running_loop()
+    log(
+        f"百分比来源：Codex 实时接口（{codex_cli}）"
+        if codex_cli
+        else "百分比来源：本地 token_count 日志（实时接口不可用）"
+    )
     log(f"等待蓝牙设备：{args.device}")
     while True:
         cycle_started = loop.time()
         snapshot = reader.snapshot()
+        if codex_cli:
+            try:
+                live_limit = await asyncio.to_thread(
+                    read_live_codex_limit, codex_cli, args.live_limit_timeout
+                )
+                if live_limit:
+                    snapshot.update(live_limit)
+                live_limit_error_logged = False
+            except Exception as exc:
+                if not live_limit_error_logged:
+                    log(f"实时额度读取失败，暂用本地日志：{exc}")
+                    live_limit_error_logged = True
         try:
             await asyncio.wait_for(
                 push_snapshot(
