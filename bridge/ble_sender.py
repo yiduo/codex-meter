@@ -10,6 +10,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -45,6 +46,7 @@ PAYLOAD_FIELDS = (
     "reasoning_output_tokens",
     "updated_at",
 )
+CACHED_LIMIT_FILENAME = "codex-meter-live-limit.json"
 
 
 def log(message: str) -> None:
@@ -108,6 +110,50 @@ def build_payload(snapshot: dict[str, Any], shared_key: str = "") -> bytes:
     return json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode() + b"\n"
 
 
+def limit_is_current(limit: dict[str, Any] | None, now: float | None = None) -> bool:
+    """A cached limit is usable only before its server-provided reset time."""
+    if not limit or limit.get("limit_id") != "codex" or not limit.get("valid"):
+        return False
+    try:
+        used_percent = float(limit["used_percent"])
+        resets_at = int(limit["resets_at"])
+    except (KeyError, TypeError, ValueError):
+        return False
+    current_time = time.time() if now is None else now
+    return 0 <= used_percent <= 100 and resets_at > current_time
+
+
+def load_cached_limit(path: Path, now: float | None = None) -> dict[str, Any] | None:
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return cached if limit_is_current(cached, now) else None
+
+
+def save_cached_limit(path: Path, limit: dict[str, Any]) -> None:
+    """Persist the last confirmed live limit so transient API failures cannot roll it back."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text(
+        json.dumps(limit, separators=(",", ":"), ensure_ascii=True),
+        encoding="utf-8",
+    )
+    temporary.replace(path)
+
+
+def apply_unavailable_limit(snapshot: dict[str, Any]) -> None:
+    """Keep token totals while explicitly withholding an unverified percentage."""
+    snapshot.update(
+        {
+            "valid": False,
+            "limit_id": "codex",
+            "used_percent": 0,
+            "resets_at": 0,
+        }
+    )
+
+
 async def find_device(name: str, timeout: float):
     from bleak import BleakScanner
 
@@ -160,6 +206,8 @@ async def run(args: argparse.Namespace) -> None:
 
     reader = UsageReader(args.codex_home.expanduser())
     codex_cli = None if args.no_live_limits else resolve_codex_cli(args.codex_cli)
+    limit_cache_path = args.codex_home.expanduser() / CACHED_LIMIT_FILENAME
+    cached_live_limit = load_cached_limit(limit_cache_path)
     live_limit_error_logged = False
     loop = asyncio.get_running_loop()
     log(
@@ -178,11 +226,26 @@ async def run(args: argparse.Namespace) -> None:
                 )
                 if live_limit:
                     snapshot.update(live_limit)
+                    cached_live_limit = live_limit
+                    save_cached_limit(limit_cache_path, live_limit)
+                else:
+                    raise RuntimeError("Codex 实时额度响应不含总体额度")
                 live_limit_error_logged = False
             except Exception as exc:
+                if limit_is_current(cached_live_limit):
+                    snapshot.update(cached_live_limit)
+                    fallback_note = "暂用本周期内上次确认值"
+                else:
+                    apply_unavailable_limit(snapshot)
+                    fallback_note = "本周期无可信缓存，暂不显示百分比"
                 if not live_limit_error_logged:
-                    log(f"实时额度读取失败，暂用本地日志：{exc}")
+                    log(f"实时额度读取失败，{fallback_note}：{exc}")
                     live_limit_error_logged = True
+        elif args.no_live_limits:
+            # This explicit diagnostics mode intentionally preserves the legacy log source.
+            pass
+        else:
+            apply_unavailable_limit(snapshot)
         try:
             await asyncio.wait_for(
                 push_snapshot(

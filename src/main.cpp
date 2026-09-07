@@ -570,12 +570,24 @@ bool applyPayload(const char* payload, size_t length) {
     return false;
   }
   if (incomingValid && guardedResetsAt != 0) {
-    // 官方重置后 resets_at 会切换到新的周期值；不比较时间戳大小，直接接受。
-    // 只有周期值完全相同时，已用百分比才必须保持单调不降。
-    if (incomingResetsAt == guardedResetsAt &&
+    uint32_t resetDifference = incomingResetsAt >= guardedResetsAt
+                                   ? incomingResetsAt - guardedResetsAt
+                                   : guardedResetsAt - incomingResetsAt;
+    bool sameLimitPeriod = resetDifference <= LIMIT_RESET_TIME_TOLERANCE_SEC;
+    // 新额度周期的重置时间应明显向后推进；拒绝延迟到达的旧周期数据。
+    if (!sameLimitPeriod && incomingResetsAt < guardedResetsAt) {
+      errorMessage = "OLD LIMIT CYCLE";
+      return false;
+    }
+    // 同一周期内已用百分比必须保持单调不降。
+    if (sameLimitPeriod &&
         incomingUsedPercent + LIMIT_PERCENT_DROP_TOLERANCE < guardedUsedPercent) {
       errorMessage = "LIMIT DROP BLOCKED";
       return false;
+    }
+    // 使用同周期内较晚的重置时间，避免后端数秒抖动造成持久化值来回变化。
+    if (sameLimitPeriod && incomingResetsAt < guardedResetsAt) {
+      incomingResetsAt = guardedResetsAt;
     }
   }
 

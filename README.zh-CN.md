@@ -48,7 +48,7 @@ Codex app-server                 ~/.codex 会话日志
                    M5StickS3 / CodexMeter
 ```
 
-百分比优先通过本机 Codex app-server 的 `account/rateLimits/read` 实时读取；接口不可用时才回退到会话日志中最新的 `rate_limits.primary.used_percent`。屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
+百分比通过本机 Codex app-server 的 `account/rateLimits/read` 实时读取。接口短暂失败时，仅复用仍处于当前重置周期内、上一次由实时接口确认的数值；如果没有当前周期的可信值，百分比显示为不可用，不再回退到可能过期的会话日志。屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
 
 token 数量来自本机 `token_count` 事件。token 与额度百分比不是同一种计费单位，因此 CodexMeter 不会根据 token 数量虚构一个“token 总额度”。今日统计按电脑的本地时区从零点开始，近 7 天为今天加前 6 个自然日。
 
@@ -211,7 +211,7 @@ LaunchAgent 使用 `RunAtLoad` 和 `KeepAlive`，登录 macOS 后会自动启动
 - Status（Read）：`7d6a1002-8f3b-4b6d-9f6a-4d3558438d01`
 - 负载：分片传输、以换行结束的紧凑 JSON
 - 确认：Status 返回最近成功应用的 `updated_at`
-- 防回退：同一额度周期内拒绝异常降低的已用百分比；`resets_at` 改变后接受官方重置值
+- 防回退：容忍服务端重置时间的数秒抖动，同一额度周期内拒绝异常降低的已用百分比，同时拒绝旧重置周期的数据；只有明显更晚的 `resets_at` 才会作为官方重置接受
 
 ## 可选的本地 HTTP 接口
 

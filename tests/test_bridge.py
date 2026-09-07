@@ -8,10 +8,14 @@ from unittest.mock import Mock, patch
 from bridge.codex_limits import extract_codex_limit
 from bridge.server import UsageReader
 from bridge.ble_sender import (
+    apply_unavailable_limit,
     build_payload,
     cycle_delay,
+    limit_is_current,
+    load_cached_limit,
     operation_timeout,
     recover_macos_bluetooth,
+    save_cached_limit,
 )
 
 
@@ -140,6 +144,48 @@ class UsageReaderTest(unittest.TestCase):
     def test_operation_timeout_covers_scan_and_connection(self) -> None:
         self.assertEqual(operation_timeout(15), 35)
         self.assertEqual(operation_timeout(2), 20)
+
+    def test_live_limit_cache_rejects_expired_and_invalid_values(self) -> None:
+        current = {
+            "valid": True,
+            "limit_id": "codex",
+            "used_percent": 4,
+            "resets_at": 2_000,
+        }
+        self.assertTrue(limit_is_current(current, now=1_000))
+        self.assertFalse(limit_is_current(current, now=2_000))
+        self.assertFalse(limit_is_current({**current, "used_percent": 101}, now=1_000))
+        self.assertFalse(
+            limit_is_current({**current, "limit_id": "codex_bengalfox"}, now=1_000)
+        )
+
+    def test_live_limit_cache_round_trip(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "limit.json"
+            current = {
+                "valid": True,
+                "limit_id": "codex",
+                "used_percent": 4.0,
+                "window_label": "WEEKLY",
+                "resets_at": 2_000,
+            }
+            save_cached_limit(path, current)
+            self.assertEqual(load_cached_limit(path, now=1_000), current)
+            self.assertIsNone(load_cached_limit(path, now=2_000))
+
+    def test_unavailable_limit_keeps_token_totals_without_fake_percentage(self) -> None:
+        snapshot = {
+            "valid": True,
+            "limit_id": "codex",
+            "used_percent": 83,
+            "resets_at": 900,
+            "today_tokens": 123,
+        }
+        apply_unavailable_limit(snapshot)
+        self.assertFalse(snapshot["valid"])
+        self.assertEqual(snapshot["used_percent"], 0)
+        self.assertEqual(snapshot["resets_at"], 0)
+        self.assertEqual(snapshot["today_tokens"], 123)
 
     def test_live_limit_uses_overall_codex_bucket(self) -> None:
         result = extract_codex_limit(
