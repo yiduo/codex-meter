@@ -12,7 +12,15 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 
-DEFAULT_CODEX_APP_CLI = Path("/Applications/ChatGPT.app/Contents/Resources/codex")
+DEFAULT_CODEX_APP_CLIS = (
+    # Newer ChatGPT builds package the CLI as a nested app.
+    Path(
+        "/Applications/ChatGPT.app/Contents/Resources/"
+        "codex-cli/CodexCLI.app/Contents/MacOS/codex"
+    ),
+    # Older ChatGPT builds used a flat resource path.
+    Path("/Applications/ChatGPT.app/Contents/Resources/codex"),
+)
 
 
 def _window_label(minutes: int) -> str:
@@ -35,11 +43,13 @@ def resolve_codex_cli(configured: Path | None = None) -> Path | None:
         candidate = Path(environment_path).expanduser()
         if candidate.is_file():
             return candidate
+    # Prefer ChatGPT's bundled CLI so the meter reads the same signed-in account as the UI.
+    for candidate in DEFAULT_CODEX_APP_CLIS:
+        if candidate.is_file():
+            return candidate
     discovered = shutil.which("codex")
     if discovered:
         return Path(discovered)
-    if DEFAULT_CODEX_APP_CLI.is_file():
-        return DEFAULT_CODEX_APP_CLI
     return None
 
 

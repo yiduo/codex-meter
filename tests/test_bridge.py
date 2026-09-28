@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from bridge.codex_limits import extract_codex_limit
+from bridge.codex_limits import extract_codex_limit, resolve_codex_cli
 from bridge.server import UsageReader
 from bridge.ble_sender import (
     apply_unavailable_limit,
@@ -230,6 +230,34 @@ class UsageReaderTest(unittest.TestCase):
                 }
             )
         )
+
+    @patch("bridge.codex_limits.shutil.which")
+    @patch("bridge.codex_limits.DEFAULT_CODEX_APP_CLIS")
+    def test_bundled_chatgpt_cli_wins_over_path_cli(
+        self, app_candidates: Mock, which: Mock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bundled = Path(temp_dir) / "ChatGPT" / "codex"
+            bundled.parent.mkdir()
+            bundled.touch()
+            app_candidates.__iter__.return_value = iter((bundled,))
+            which.return_value = "/usr/local/bin/codex"
+
+            self.assertEqual(resolve_codex_cli(), bundled)
+
+    @patch("bridge.codex_limits.shutil.which", return_value=None)
+    @patch("bridge.codex_limits.DEFAULT_CODEX_APP_CLIS")
+    def test_resolver_skips_removed_old_app_path(
+        self, app_candidates: Mock, _which: Mock
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            removed = Path(temp_dir) / "old" / "codex"
+            replacement = Path(temp_dir) / "new" / "codex"
+            replacement.parent.mkdir()
+            replacement.touch()
+            app_candidates.__iter__.return_value = iter((removed, replacement))
+
+            self.assertEqual(resolve_codex_cli(), replacement)
 
     @patch("bridge.ble_sender.sys.platform", "darwin")
     @patch("bridge.ble_sender.subprocess.run")

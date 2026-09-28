@@ -219,6 +219,15 @@ async def run(args: argparse.Namespace) -> None:
     while True:
         cycle_started = loop.time()
         snapshot = reader.snapshot()
+        if not args.no_live_limits and (codex_cli is None or not codex_cli.is_file()):
+            previous_cli = codex_cli
+            codex_cli = resolve_codex_cli(args.codex_cli)
+            if codex_cli != previous_cli:
+                log(
+                    f"实时接口路径已更新：{codex_cli}"
+                    if codex_cli
+                    else "Codex 实时接口路径暂不可用"
+                )
         if codex_cli:
             try:
                 live_limit = await asyncio.to_thread(

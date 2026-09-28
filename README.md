@@ -48,7 +48,7 @@ live account/rateLimits/read    local token_count events
                   M5StickS3 / CodexMeter
 ```
 
-The percentage is read live from the local Codex app-server method `account/rateLimits/read`. During a transient interface failure, the sender reuses only the last live value confirmed for the still-active reset period. If no current confirmed value exists, the percentage is shown as unavailable instead of falling back to potentially stale session logs. The device displays `100 - used_percent`. CodexMeter accepts only the overall `limit_id=codex` limit, preventing a model-specific limit from being shown as the account-wide value.
+The percentage is read live from the local Codex app-server method `account/rateLimits/read`. The bridge prefers ChatGPT's bundled Codex CLI and re-resolves its path automatically when a ChatGPT update moves the executable. During a transient interface failure, the sender reuses only the last live value confirmed for the still-active reset period. If no current confirmed value exists, the percentage is shown as unavailable instead of falling back to potentially stale session logs. The device displays `100 - used_percent`. CodexMeter accepts only the overall `limit_id=codex` limit, preventing a model-specific limit from being shown as the account-wide value.
 
 Token totals come from local `token_count` events. Tokens and rate-limit percentages are different units, so CodexMeter does not invent a “total token allowance.” Today's total starts at midnight in the computer's local time zone; seven days means today plus the six previous calendar days.
 

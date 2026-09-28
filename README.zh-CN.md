@@ -48,7 +48,7 @@ Codex app-server                 ~/.codex 会话日志
                    M5StickS3 / CodexMeter
 ```
 
-百分比通过本机 Codex app-server 的 `account/rateLimits/read` 实时读取。接口短暂失败时，仅复用仍处于当前重置周期内、上一次由实时接口确认的数值；如果没有当前周期的可信值，百分比显示为不可用，不再回退到可能过期的会话日志。屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
+百分比通过本机 Codex app-server 的 `account/rateLimits/read` 实时读取。桥接程序优先使用 ChatGPT 内置的 Codex CLI，并在 ChatGPT 更新导致可执行文件移动后自动重新解析路径。接口短暂失败时，仅复用仍处于当前重置周期内、上一次由实时接口确认的数值；如果没有当前周期的可信值，百分比显示为不可用，不再回退到可能过期的会话日志。屏幕显示的是 `100 - used_percent`。设备只接受总体额度 `limit_id=codex`，避免把模型专属额度误当成账户总体额度。
 
 token 数量来自本机 `token_count` 事件。token 与额度百分比不是同一种计费单位，因此 CodexMeter 不会根据 token 数量虚构一个“token 总额度”。今日统计按电脑的本地时区从零点开始，近 7 天为今天加前 6 个自然日。
 
