@@ -11,6 +11,7 @@ from bridge.ble_sender import (
     apply_unavailable_limit,
     build_payload,
     cycle_delay,
+    executable_identity,
     limit_is_current,
     load_cached_limit,
     operation_timeout,
@@ -144,6 +145,22 @@ class UsageReaderTest(unittest.TestCase):
     def test_operation_timeout_covers_scan_and_connection(self) -> None:
         self.assertEqual(operation_timeout(15), 35)
         self.assertEqual(operation_timeout(2), 20)
+
+    def test_executable_identity_changes_after_runtime_is_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            executable = Path(temp_dir) / "python"
+            executable.write_bytes(b"old runtime")
+            original = executable_identity(executable)
+            replacement = executable.with_suffix(".new")
+            replacement.write_bytes(b"new runtime")
+            replacement.replace(executable)
+
+            self.assertIsNotNone(original)
+            self.assertNotEqual(executable_identity(executable), original)
+
+    def test_executable_identity_returns_none_for_missing_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            self.assertIsNone(executable_identity(Path(temp_dir) / "missing"))
 
     def test_live_limit_cache_rejects_expired_and_invalid_values(self) -> None:
         current = {

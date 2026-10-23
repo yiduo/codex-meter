@@ -54,6 +54,15 @@ def log(message: str) -> None:
     print(f"[{timestamp}] {message}", flush=True)
 
 
+def executable_identity(executable: str | Path = sys.executable) -> tuple[int, int, int] | None:
+    """Identify the running Python file so package-manager replacements can be detected."""
+    try:
+        metadata = Path(executable).stat()
+    except OSError:
+        return None
+    return metadata.st_dev, metadata.st_ino, metadata.st_mtime_ns
+
+
 def operation_timeout(connection_timeout: float) -> float:
     """Allow one scan and one connection, but never hang indefinitely."""
     return max(connection_timeout * 2 + 5, 20)
@@ -210,6 +219,7 @@ async def run(args: argparse.Namespace) -> None:
     cached_live_limit = load_cached_limit(limit_cache_path)
     live_limit_error_logged = False
     loop = asyncio.get_running_loop()
+    startup_executable_identity = executable_identity()
     log(
         f"百分比来源：Codex 实时接口（{codex_cli}）"
         if codex_cli
@@ -217,6 +227,9 @@ async def run(args: argparse.Namespace) -> None:
     )
     log(f"等待蓝牙设备：{args.device}")
     while True:
+        if executable_identity() != startup_executable_identity:
+            log("检测到 Python 运行时已更新，退出并由 LaunchAgent 自动重启")
+            return
         cycle_started = loop.time()
         snapshot = reader.snapshot()
         if not args.no_live_limits and (codex_cli is None or not codex_cli.is_file()):

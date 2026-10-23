@@ -22,6 +22,7 @@ The desktop bridge reads usage counters from local Codex session logs, connects 
 - Battery-saving dim mode after 30 seconds, restored by movement or a button press
 - Full brightness while USB or external 5 V power is detected
 - A macOS LaunchAgent for login-time startup, automatic restart, and single-instance operation
+- Automatic service refresh when Homebrew replaces the active Python runtime
 
 Remaining capacity colors:
 
