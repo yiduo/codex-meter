@@ -579,12 +579,8 @@ bool applyPayload(const char* payload, size_t length) {
       errorMessage = "OLD LIMIT CYCLE";
       return false;
     }
-    // 同一周期内已用百分比必须保持单调不降。
-    if (sameLimitPeriod &&
-        incomingUsedPercent + LIMIT_PERCENT_DROP_TOLERANCE < guardedUsedPercent) {
-      errorMessage = "LIMIT DROP BLOCKED";
-      return false;
-    }
+    // Codex 周额度是滚动窗口；旧用量移出窗口时，同一周期内的已用百分比也可能下降。
+    // 电脑端已负责验证实时接口及当前周期缓存，因此这里不能用单调递增规则拒绝新值。
     // 使用同周期内较晚的重置时间，避免后端数秒抖动造成持久化值来回变化。
     if (sameLimitPeriod && incomingResetsAt < guardedResetsAt) {
       incomingResetsAt = guardedResetsAt;
@@ -608,7 +604,8 @@ bool applyPayload(const char* payload, size_t length) {
   wakeScreen();
 
   if (usage.valid &&
-      (usage.resetsAt != guardedResetsAt || usage.usedPercent > guardedUsedPercent)) {
+      (usage.resetsAt != guardedResetsAt ||
+       fabsf(usage.usedPercent - guardedUsedPercent) > 0.001f)) {
     saveLimitGuard(usage.usedPercent, usage.resetsAt);
   }
 

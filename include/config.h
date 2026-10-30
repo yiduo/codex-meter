@@ -26,7 +26,5 @@
 #define POWER_CHECK_INTERVAL_MS 1000UL
 #define EXTERNAL_POWER_MIN_MV 4000
 
-// 同一总体额度周期内已用百分比只能上升；超过该容差的回退数据会被拒绝。
-#define LIMIT_PERCENT_DROP_TOLERANCE 0.5f
 // 后端返回的重置时间可能有数秒抖动；在此范围内仍视为同一额度周期。
 #define LIMIT_RESET_TIME_TOLERANCE_SEC 300UL

@@ -210,7 +210,7 @@ Common sender options:
 - Status (Read): `7d6a1002-8f3b-4b6d-9f6a-4d3558438d01`
 - Payload: chunked, compact JSON terminated by a newline
 - Confirmation: Status returns the last successfully applied `updated_at`
-- Rollback guard: tolerates small server reset-time jitter, rejects an abnormal usage decrease inside one limit period, and rejects data from an older reset period; only a meaningfully later `resets_at` permits an official reset
+- Cycle guard: tolerates small server reset-time jitter and rejects data from an older reset period. Usage may legitimately decrease inside the same rolling weekly window when older activity ages out, so the device accepts the latest computer-verified percentage.
 
 ## Optional local HTTP endpoint
 
